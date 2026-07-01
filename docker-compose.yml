@@ -1,0 +1,107 @@
+# Local development stack — mirrors production architecture at a smaller scale.
+# MySQL simulates RDS; volumes persist data between restarts.
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ems-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: employee_management
+      MYSQL_USER: ems_user
+      MYSQL_PASSWORD: ems_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./backend/database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ems-network
+
+  # LocalStack simulates S3 and Secrets Manager for local dev
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: ems-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,secretsmanager
+      DEFAULT_REGION: us-east-1
+      DEBUG: 0
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh:ro
+    networks:
+      - ems-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: ems-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DB_WRITER_HOST: mysql
+      DB_READER_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: employee_management
+      DB_USER: ems_user
+      DB_PASSWORD: ems_password
+      JWT_SECRET: local-dev-jwt-secret-change-in-production
+      JWT_EXPIRES_IN: 24h
+      AWS_REGION: us-east-1
+      S3_BUCKET: ems-profile-pictures-local
+      AWS_ENDPOINT_URL: http://localstack:4566
+      CORS_ORIGIN: http://localhost:3000
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 100
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./backend/package.json:/app/package.json:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+    networks:
+      - ems-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: ems-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:3001/api/v1
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+    depends_on:
+      - backend
+    networks:
+      - ems-network
+
+volumes:
+  mysql_data:
+  localstack_data:
+
+networks:
+  ems-network:
+    driver: bridge

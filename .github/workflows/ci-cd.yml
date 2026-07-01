@@ -1,0 +1,185 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '20'
+
+jobs:
+  # --- Backend CI ---
+  backend-test:
+    name: Backend — Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript build
+        run: npm run build
+
+  # --- Frontend CI ---
+  frontend-test:
+    name: Frontend — Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: /api/v1
+
+  # --- Terraform Validate ---
+  terraform-validate:
+    name: Terraform — Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+  # --- Deploy Backend (Blue-Green via CodeDeploy) ---
+  deploy-backend:
+    name: Deploy Backend
+    needs: [backend-test, frontend-test, terraform-validate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build backend
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+          npm prune --production
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Package deployment artifact
+        working-directory: backend
+        run: |
+          zip -r ../deploy-backend.zip . -x "src/*" "node_modules/.cache/*" "*.ts" "tsconfig.json"
+          cd ..
+          ls -la deploy-backend.zip
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp deploy-backend.zip s3://${{ secrets.DEPLOY_BUCKET }}/backend/deploy-${{ github.sha }}.zip
+
+      - name: Deploy via CodeDeploy
+        run: |
+          aws deploy create-deployment \
+            --application-name ${{ secrets.CODEDEPLOY_APP_NAME }} \
+            --deployment-group-name ${{ secrets.CODEDEPLOY_DG_NAME }} \
+            --s3-location bucket=${{ secrets.DEPLOY_BUCKET }},key=backend/deploy-${{ github.sha }}.zip,bundleType=zip \
+            --description "Deploy ${{ github.sha }} from GitHub Actions"
+
+  # --- Deploy Frontend ---
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: [backend-test, frontend-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_API_URL: /api/v1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to frontend EC2 instances via SSM
+        run: |
+          INSTANCES=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=ems-frontend-*" "Name=instance-state-name,Values=running" \
+            --query "Reservations[].Instances[].InstanceId" --output text)
+
+          for INSTANCE in $INSTANCES; do
+            aws ssm send-command \
+              --instance-ids "$INSTANCE" \
+              --document-name "AWS-RunShellScript" \
+              --parameters commands="[
+                \"aws s3 cp s3://${{ secrets.DEPLOY_BUCKET }}/frontend/dist.tar.gz /tmp/dist.tar.gz\",
+                \"tar -xzf /tmp/dist.tar.gz -C /usr/share/nginx/html\",
+                \"systemctl reload nginx\"
+              ]"
+          done
+
+      - name: Upload frontend build to S3
+        working-directory: frontend
+        run: |
+          tar -czf dist.tar.gz -C dist .
+          aws s3 cp dist.tar.gz s3://${{ secrets.DEPLOY_BUCKET }}/frontend/dist.tar.gz
