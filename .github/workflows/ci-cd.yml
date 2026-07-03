@@ -122,8 +122,15 @@ jobs:
           echo "CODEDEPLOY_APP_NAME=${{ secrets.CODEDEPLOY_APP_NAME || env.CODEDEPLOY_APP_DEFAULT }}" >> "$GITHUB_ENV"
           echo "CODEDEPLOY_DG_NAME=${{ secrets.CODEDEPLOY_DG_NAME || env.CODEDEPLOY_DG_DEFAULT }}" >> "$GITHUB_ENV"
 
-      - name: Verify CodeDeploy infrastructure exists
-        run: bash scripts/verify-codedeploy.sh
+      - name: Check CodeDeploy infrastructure
+        id: codedeploy
+        run: |
+          if bash scripts/verify-codedeploy.sh; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Backend CodeDeploy skipped — run 'cd terraform && terraform apply' to provision AWS infrastructure first."
+          fi
 
       - name: Ensure deploy bucket exists
         run: bash scripts/ensure-deploy-bucket.sh
@@ -140,6 +147,7 @@ jobs:
           aws s3 cp deploy-backend.zip "s3://${DEPLOY_BUCKET}/backend/deploy-${{ github.sha }}.zip"
 
       - name: Deploy via CodeDeploy
+        if: steps.codedeploy.outputs.ready == 'true'
         run: |
           aws deploy create-deployment \
             --application-name "${CODEDEPLOY_APP_NAME}" \

@@ -43,7 +43,7 @@ Expected names (defaults):
   Deployment group: ${DG}
 
 EOF
-  exit 1
+  exit "${VERIFY_CODEDEPLOY_STRICT:-1}"
 fi
 
 echo "CodeDeploy ready: app=${APP}, deployment-group=${DG}, region=${REGION}"
