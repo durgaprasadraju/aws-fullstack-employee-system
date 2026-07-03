@@ -22,9 +22,15 @@ variable "domain_name" {
   type        = string
 }
 
-variable "hosted_zone_id" {
-  description = "Route 53 hosted zone ID for the domain"
+variable "route53_zone_name" {
+  description = "Route 53 hosted zone name (e.g., company.com). Used to look up the zone ID automatically."
   type        = string
+}
+
+variable "hosted_zone_id" {
+  description = "Optional Route 53 hosted zone ID. If set, skips automatic zone lookup."
+  type        = string
+  default     = null
 }
 
 variable "vpc_cidr" {

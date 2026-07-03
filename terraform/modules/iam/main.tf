@@ -9,8 +9,8 @@ resource "aws_iam_role" "ec2_backend" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
     }]
   })
@@ -35,9 +35,9 @@ resource "aws_iam_role_policy" "ec2_backend" {
         Resource = [var.s3_bucket_arn, "${var.s3_bucket_arn}/*"]
       },
       {
-        Sid    = "SecretsManagerRead"
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue"]
+        Sid      = "SecretsManagerRead"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
         Resource = [var.db_secret_arn]
       },
       {
@@ -52,9 +52,9 @@ resource "aws_iam_role_policy" "ec2_backend" {
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
-        Sid    = "CloudWatchMetrics"
-        Effect = "Allow"
-        Action = ["cloudwatch:PutMetricData"]
+        Sid      = "CloudWatchMetrics"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:PutMetricData"]
         Resource = ["*"]
         Condition = {
           StringEquals = { "cloudwatch:namespace" = "EMS/Backend" }
@@ -76,8 +76,8 @@ resource "aws_iam_role" "deployment" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "codedeploy.amazonaws.com" }
     }]
   })
@@ -129,8 +129,8 @@ resource "aws_iam_role" "monitoring" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "cloudwatch.amazonaws.com" }
     }]
   })
@@ -159,9 +159,9 @@ resource "aws_iam_role_policy" "monitoring" {
         Resource = ["*"]
       },
       {
-        Sid    = "SNSPublish"
-        Effect = "Allow"
-        Action = ["sns:Publish"]
+        Sid      = "SNSPublish"
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
         Resource = [aws_sns_topic.alerts.arn]
       }
     ]

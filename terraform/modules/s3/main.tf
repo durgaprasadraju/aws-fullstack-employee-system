@@ -58,7 +58,7 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
       Principal = { Service = "cloudtrail.amazonaws.com" }
       Action    = "s3:GetBucketAcl"
       Resource  = aws_s3_bucket.cloudtrail.arn
-    }, {
+      }, {
       Sid       = "AWSCloudTrailWrite"
       Effect    = "Allow"
       Principal = { Service = "cloudtrail.amazonaws.com" }
@@ -72,3 +72,36 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
 output "bucket_name" { value = aws_s3_bucket.profiles.bucket }
 output "bucket_arn" { value = aws_s3_bucket.profiles.arn }
 output "cloudtrail_bucket_name" { value = aws_s3_bucket.cloudtrail.bucket }
+
+# Private bucket for CI/CD deployment artifacts (backend zip + frontend dist)
+resource "aws_s3_bucket" "deploy" {
+  bucket = "${var.project_name}-deploy-artifacts-${var.environment}"
+  tags   = { Name = "${var.project_name}-deploy-artifacts" }
+}
+
+resource "aws_s3_bucket_public_access_block" "deploy" {
+  bucket = aws_s3_bucket.deploy.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "deploy" {
+  bucket = aws_s3_bucket.deploy.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "deploy" {
+  bucket = aws_s3_bucket.deploy.id
+  versioning_configuration { status = "Enabled" }
+}
+
+output "deploy_bucket_name" { value = aws_s3_bucket.deploy.bucket }
+output "deploy_bucket_arn" { value = aws_s3_bucket.deploy.arn }

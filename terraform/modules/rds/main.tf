@@ -44,10 +44,10 @@ resource "aws_db_instance" "writer" {
   vpc_security_group_ids = var.security_group_ids
   parameter_group_name   = aws_db_parameter_group.mysql.name
 
-  multi_az               = true
-  publicly_accessible    = false
-  deletion_protection    = true
-  skip_final_snapshot    = false
+  multi_az                  = true
+  publicly_accessible       = false
+  deletion_protection       = true
+  skip_final_snapshot       = false
   final_snapshot_identifier = "${var.project_name}-mysql-final-snapshot"
 
   backup_retention_period = 7

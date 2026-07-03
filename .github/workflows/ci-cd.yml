@@ -161,6 +161,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Upload frontend build to S3
+        working-directory: frontend
+        run: |
+          tar -czf dist.tar.gz -C dist .
+          aws s3 cp dist.tar.gz s3://${{ secrets.DEPLOY_BUCKET }}/frontend/dist.tar.gz
+
       - name: Deploy to frontend EC2 instances via SSM
         run: |
           INSTANCES=$(aws ec2 describe-instances \
@@ -177,9 +183,3 @@ jobs:
                 \"systemctl reload nginx\"
               ]"
           done
-
-      - name: Upload frontend build to S3
-        working-directory: frontend
-        run: |
-          tar -czf dist.tar.gz -C dist .
-          aws s3 cp dist.tar.gz s3://${{ secrets.DEPLOY_BUCKET }}/frontend/dist.tar.gz

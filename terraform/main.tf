@@ -33,6 +33,16 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+data "aws_route53_zone" "main" {
+  count        = var.hosted_zone_id == null ? 1 : 0
+  name         = var.route53_zone_name
+  private_zone = false
+}
+
+locals {
+  hosted_zone_id = coalesce(var.hosted_zone_id, data.aws_route53_zone.main[0].zone_id)
+}
+
 # --- Infrastructure Modules ---
 
 module "vpc" {
@@ -109,14 +119,14 @@ module "acm" {
   source = "./modules/acm"
 
   domain_name    = var.domain_name
-  hosted_zone_id = var.hosted_zone_id
+  hosted_zone_id = local.hosted_zone_id
 }
 
 module "route53" {
   source = "./modules/route53"
 
   domain_name    = var.domain_name
-  hosted_zone_id = var.hosted_zone_id
+  hosted_zone_id = local.hosted_zone_id
   alb_dns_name   = module.alb.alb_dns_name
   alb_zone_id    = module.alb.alb_zone_id
 }
@@ -124,11 +134,11 @@ module "route53" {
 module "bastion" {
   source = "./modules/bastion"
 
-  project_name      = var.project_name
-  public_subnet_id  = module.vpc.public_subnet_ids[0]
-  bastion_sg_id     = module.security_groups.bastion_sg_id
-  key_name          = var.bastion_key_name
-  instance_type     = "t3.micro"
+  project_name     = var.project_name
+  public_subnet_id = module.vpc.public_subnet_ids[0]
+  bastion_sg_id    = module.security_groups.bastion_sg_id
+  key_name         = var.bastion_key_name
+  instance_type    = "t3.micro"
 }
 
 module "asg" {

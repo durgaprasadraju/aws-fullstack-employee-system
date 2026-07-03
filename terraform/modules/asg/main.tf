@@ -54,17 +54,17 @@ resource "aws_launch_template" "backend" {
 
   tag_specifications {
     resource_type = "instance"
-    tags = { Name = "${var.project_name}-backend" }
+    tags          = { Name = "${var.project_name}-backend" }
   }
 
   lifecycle { create_before_destroy = true }
 }
 
 resource "aws_autoscaling_group" "backend" {
-  name                = "${var.project_name}-backend-asg"
-  vpc_zone_identifier = var.private_subnet_ids
-  target_group_arns   = [var.target_group_arn]
-  health_check_type   = "ELB"
+  name                      = "${var.project_name}-backend-asg"
+  vpc_zone_identifier       = var.private_subnet_ids
+  target_group_arns         = [var.target_group_arn]
+  health_check_type         = "ELB"
   health_check_grace_period = 300
 
   min_size         = var.min_size

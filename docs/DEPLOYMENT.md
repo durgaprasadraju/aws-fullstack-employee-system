@@ -22,8 +22,9 @@ Edit `terraform.tfvars`:
 
 ```hcl
 aws_region       = "us-east-1"
-domain_name      = "employee.yourcompany.com"
-hosted_zone_id   = "Z0XXXXXXXXXX"        # Your Route 53 zone ID
+domain_name       = "employee.yourcompany.com"
+route53_zone_name = "yourcompany.com"    # Terraform looks up the hosted zone ID automatically
+# hosted_zone_id  = "Z0XXXXXXXXXX"       # Optional: use instead of route53_zone_name
 bastion_key_name = "your-ec2-key-pair"
 alert_email      = "ops@yourcompany.com"
 db_username      = "ems_admin"
@@ -91,17 +92,28 @@ scp -i your-key.pem backend/database/*.sql ec2-user@<bastion-ip>:~/
 
 ## Step 4: Configure GitHub Actions Secrets
 
-In your GitHub repository → Settings → Secrets:
+In your GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
 
-| Secret | Value |
-|--------|-------|
-| `AWS_ACCESS_KEY_ID` | CI/CD IAM user access key |
-| `AWS_SECRET_ACCESS_KEY` | CI/CD IAM user secret key |
-| `DEPLOY_BUCKET` | S3 bucket for deployment artifacts |
-| `CODEDEPLOY_APP_NAME` | `ems-app` (from terraform output) |
-| `CODEDEPLOY_DG_NAME` | `ems-backend-dg` |
+| Secret | How to get the value |
+|--------|----------------------|
+| `AWS_ACCESS_KEY_ID` | IAM user access key for CI/CD |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret key |
+| `DEPLOY_BUCKET` | `terraform output -raw deploy_bucket_name` |
+| `CODEDEPLOY_APP_NAME` | `terraform output -raw codedeploy_app_name` |
+| `CODEDEPLOY_DG_NAME` | `terraform output -raw codedeploy_deployment_group_name` |
+
+Get all values at once:
+
+```bash
+cd terraform
+terraform output -raw deploy_bucket_name
+terraform output -raw codedeploy_app_name
+terraform output -raw codedeploy_deployment_group_name
+```
 
 > **Note:** Create a dedicated IAM user for CI/CD with least-privilege permissions for S3, CodeDeploy, EC2, and SSM. Do not use root credentials.
+>
+> If you see `s3:///frontend/...` in CI logs, `DEPLOY_BUCKET` is missing or empty in GitHub Secrets.
 
 ## Step 5: Deploy Application
 
