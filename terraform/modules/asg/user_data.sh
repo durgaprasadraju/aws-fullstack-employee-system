@@ -14,7 +14,7 @@ dnf install -y nodejs
 # Install CodeDeploy agent
 dnf install -y ruby wget
 cd /home/ec2-user
-wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
+wget "https://aws-codedeploy-${aws_region}.s3.${aws_region}.amazonaws.com/latest/install"
 chmod +x ./install
 ./install auto
 systemctl enable codedeploy-agent
@@ -29,7 +29,7 @@ useradd -r -s /bin/false node 2>/dev/null || true
 chown -R node:node /opt/ems-backend
 
 # Systemd service for backend
-cat > /etc/systemd/system/ems-backend.service << 'EOF'
+cat > /etc/systemd/system/ems-backend.service << EOF
 [Unit]
 Description=EMS Backend API
 After=network.target
@@ -40,7 +40,7 @@ User=node
 WorkingDirectory=/opt/ems-backend
 Environment=NODE_ENV=production
 Environment=PORT=3001
-Environment=AWS_REGION=us-east-1
+Environment=AWS_REGION=${aws_region}
 ExecStart=/usr/bin/node dist/server.js
 Restart=always
 RestartSec=10

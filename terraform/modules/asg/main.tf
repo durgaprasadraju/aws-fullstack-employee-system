@@ -8,6 +8,7 @@ variable "min_size" { type = number }
 variable "max_size" { type = number }
 variable "desired_capacity" { type = number }
 variable "target_group_arn" { type = string }
+variable "aws_region" { type = string }
 
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -36,6 +37,7 @@ resource "aws_launch_template" "backend" {
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
     project_name = var.project_name
+    aws_region   = var.aws_region
   }))
 
   metadata_options {

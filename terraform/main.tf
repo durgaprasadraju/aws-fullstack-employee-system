@@ -154,6 +154,7 @@ module "asg" {
   max_size                  = var.asg_max_size
   desired_capacity          = var.asg_desired_capacity
   target_group_arn          = module.alb.backend_target_group_arn
+  aws_region                = var.aws_region
 }
 
 module "frontend" {

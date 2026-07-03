@@ -9,6 +9,10 @@ on:
 env:
   AWS_REGION: us-west-2
   NODE_VERSION: '20'
+  # Defaults match terraform (project_name=ems, environment=production)
+  DEPLOY_BUCKET_DEFAULT: ems-deploy-artifacts-production
+  CODEDEPLOY_APP_DEFAULT: ems-app
+  CODEDEPLOY_DG_DEFAULT: ems-backend-dg
 
 jobs:
   # --- Backend CI ---
@@ -112,6 +116,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Set deployment variables
+        run: |
+          echo "DEPLOY_BUCKET=${{ secrets.DEPLOY_BUCKET || env.DEPLOY_BUCKET_DEFAULT }}" >> "$GITHUB_ENV"
+          echo "CODEDEPLOY_APP_NAME=${{ secrets.CODEDEPLOY_APP_NAME || env.CODEDEPLOY_APP_DEFAULT }}" >> "$GITHUB_ENV"
+          echo "CODEDEPLOY_DG_NAME=${{ secrets.CODEDEPLOY_DG_NAME || env.CODEDEPLOY_DG_DEFAULT }}" >> "$GITHUB_ENV"
+
+      - name: Ensure deploy bucket exists
+        run: bash scripts/ensure-deploy-bucket.sh
+
       - name: Package deployment artifact
         working-directory: backend
         run: |
@@ -121,14 +134,14 @@ jobs:
 
       - name: Upload to S3
         run: |
-          aws s3 cp deploy-backend.zip s3://${{ secrets.DEPLOY_BUCKET }}/backend/deploy-${{ github.sha }}.zip
+          aws s3 cp deploy-backend.zip "s3://${DEPLOY_BUCKET}/backend/deploy-${{ github.sha }}.zip"
 
       - name: Deploy via CodeDeploy
         run: |
           aws deploy create-deployment \
-            --application-name ${{ secrets.CODEDEPLOY_APP_NAME }} \
-            --deployment-group-name ${{ secrets.CODEDEPLOY_DG_NAME }} \
-            --s3-location bucket=${{ secrets.DEPLOY_BUCKET }},key=backend/deploy-${{ github.sha }}.zip,bundleType=zip \
+            --application-name "${CODEDEPLOY_APP_NAME}" \
+            --deployment-group-name "${CODEDEPLOY_DG_NAME}" \
+            --s3-location "bucket=${DEPLOY_BUCKET},key=backend/deploy-${{ github.sha }}.zip,bundleType=zip" \
             --description "Deploy ${{ github.sha }} from GitHub Actions"
 
   # --- Deploy Frontend ---
@@ -161,11 +174,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Set deployment variables
+        run: |
+          echo "DEPLOY_BUCKET=${{ secrets.DEPLOY_BUCKET || env.DEPLOY_BUCKET_DEFAULT }}" >> "$GITHUB_ENV"
+
+      - name: Ensure deploy bucket exists
+        run: bash scripts/ensure-deploy-bucket.sh
+
       - name: Upload frontend build to S3
         working-directory: frontend
         run: |
           tar -czf dist.tar.gz -C dist .
-          aws s3 cp dist.tar.gz s3://${{ secrets.DEPLOY_BUCKET }}/frontend/dist.tar.gz
+          aws s3 cp dist.tar.gz "s3://${DEPLOY_BUCKET}/frontend/dist.tar.gz"
 
       - name: Deploy to frontend EC2 instances via SSM
         run: |
@@ -173,12 +193,17 @@ jobs:
             --filters "Name=tag:Name,Values=ems-frontend-*" "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[].InstanceId" --output text)
 
+          if [ -z "$INSTANCES" ]; then
+            echo "No running frontend instances found — S3 upload complete, skipping SSM deploy."
+            exit 0
+          fi
+
           for INSTANCE in $INSTANCES; do
             aws ssm send-command \
               --instance-ids "$INSTANCE" \
               --document-name "AWS-RunShellScript" \
               --parameters commands="[
-                \"aws s3 cp s3://${{ secrets.DEPLOY_BUCKET }}/frontend/dist.tar.gz /tmp/dist.tar.gz\",
+                \"aws s3 cp s3://${DEPLOY_BUCKET}/frontend/dist.tar.gz /tmp/dist.tar.gz\",
                 \"tar -xzf /tmp/dist.tar.gz -C /usr/share/nginx/html\",
                 \"systemctl reload nginx\"
               ]"

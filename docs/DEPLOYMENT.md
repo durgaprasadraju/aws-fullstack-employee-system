@@ -111,9 +111,9 @@ terraform output -raw codedeploy_app_name
 terraform output -raw codedeploy_deployment_group_name
 ```
 
-> **Note:** Create a dedicated IAM user for CI/CD with least-privilege permissions for S3, CodeDeploy, EC2, and SSM. Do not use root credentials.
+> **Note:** Create a dedicated IAM user for CI/CD. Attach the policy in [ci-iam-policy.json](ci-iam-policy.json) (includes `s3:CreateBucket` so CI can auto-create the deploy bucket).
 >
-> If you see `s3:///frontend/...` in CI logs, `DEPLOY_BUCKET` is missing or empty in GitHub Secrets.
+> GitHub secrets are **optional** — defaults match Terraform naming (`ems-deploy-artifacts-production`, `ems-app`, `ems-backend-dg`). Only `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are required.
 
 ## Step 5: Deploy Application
 

@@ -1,0 +1,43 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DeployArtifactsBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:HeadBucket",
+        "s3:ListBucket",
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:PutBucketEncryption",
+        "s3:PutPublicAccessBlock"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ems-deploy-artifacts-production",
+        "arn:aws:s3:::ems-deploy-artifacts-production/*"
+      ]
+    },
+    {
+      "Sid": "CodeDeploy",
+      "Effect": "Allow",
+      "Action": [
+        "codedeploy:CreateDeployment",
+        "codedeploy:GetDeployment",
+        "codedeploy:GetApplication",
+        "codedeploy:GetDeploymentGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "FrontendDeploy",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
