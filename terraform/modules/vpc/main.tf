@@ -147,8 +147,17 @@ resource "aws_network_acl" "public" {
   }
 
   ingress {
-    protocol   = "-1"
+    protocol   = "tcp"
     rule_no    = 130
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  ingress {
+    protocol   = "udp"
+    rule_no    = 140
     action     = "allow"
     cidr_block = "0.0.0.0/0"
     from_port  = 1024
@@ -181,8 +190,17 @@ resource "aws_network_acl" "private" {
   }
 
   ingress {
-    protocol   = "-1"
+    protocol   = "tcp"
     rule_no    = 110
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  ingress {
+    protocol   = "udp"
+    rule_no    = 120
     action     = "allow"
     cidr_block = "0.0.0.0/0"
     from_port  = 1024
