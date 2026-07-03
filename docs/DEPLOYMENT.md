@@ -117,6 +117,10 @@ terraform output -raw codedeploy_deployment_group_name
 
 ## Step 5: Deploy Application
 
+> **Important:** Complete **Step 2 (`terraform apply`)** before pushing to `main`.
+> CI uploads to S3 automatically, but **CodeDeploy** (`ems-app` / `ems-backend-dg`) only exists after Terraform runs.
+> If CI fails with `ApplicationDoesNotExistException`, run `terraform apply` first.
+
 Push to `main` branch:
 
 ```bash
