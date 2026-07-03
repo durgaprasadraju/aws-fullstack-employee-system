@@ -41,12 +41,39 @@ for INSTANCE in $INSTANCES; do
     ]" \
     --query "Command.CommandId" --output text)
 
-  aws ssm wait command-executed \
-    --region "$REGION" \
-    --command-id "$COMMAND_ID" \
-    --instance-id "$INSTANCE"
+  echo "Waiting for SSM command ${COMMAND_ID}..."
+  for _ in $(seq 1 36); do
+    STATUS=$(aws ssm get-command-invocation \
+      --region "$REGION" \
+      --command-id "$COMMAND_ID" \
+      --instance-id "$INSTANCE" \
+      --query "Status" --output text 2>/dev/null || echo "Pending")
 
-  echo "Deployed to ${INSTANCE} (command ${COMMAND_ID})"
+    case "$STATUS" in
+      Success)
+        echo "Deployed to ${INSTANCE} (command ${COMMAND_ID})"
+        break
+        ;;
+      Failed|Cancelled|TimedOut)
+        echo "SSM deploy failed on ${INSTANCE} (status: ${STATUS})"
+        aws ssm get-command-invocation \
+          --region "$REGION" \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE" \
+          --query "{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}"
+        exit 1
+        ;;
+      *)
+        sleep 5
+        ;;
+    esac
+  done
+
+  if [ "${STATUS:-}" != "Success" ]; then
+    echo "Timed out waiting for SSM command on ${INSTANCE}"
+    exit 1
+  fi
+
   DEPLOYED=$((DEPLOYED + 1))
 done
 

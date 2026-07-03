@@ -5,6 +5,8 @@ variable "instance_type" { type = string }
 variable "key_name" { type = string }
 variable "target_group_arn" { type = string }
 variable "instance_profile_name" { type = string }
+variable "deploy_bucket_name" { type = string }
+variable "aws_region" { type = string }
 
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -27,7 +29,10 @@ resource "aws_instance" "frontend" {
   subnet_id              = var.public_subnet_ids[count.index]
   vpc_security_group_ids = [var.frontend_security_group_id]
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {}))
+  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
+    deploy_bucket = var.deploy_bucket_name
+    aws_region    = var.aws_region
+  }))
 
   metadata_options {
     http_endpoint = "enabled"

@@ -167,6 +167,8 @@ module "frontend" {
   instance_type              = var.frontend_instance_type
   key_name                   = var.bastion_key_name
   instance_profile_name      = module.iam.ec2_frontend_instance_profile_name
+  deploy_bucket_name         = module.s3.deploy_bucket_name
+  aws_region                 = var.aws_region
   target_group_arn           = module.alb.frontend_target_group_arn
 }
 
