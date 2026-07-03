@@ -4,6 +4,7 @@ variable "frontend_security_group_id" { type = string }
 variable "instance_type" { type = string }
 variable "key_name" { type = string }
 variable "target_group_arn" { type = string }
+variable "instance_profile_name" { type = string }
 
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -22,6 +23,7 @@ resource "aws_instance" "frontend" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
   key_name               = var.key_name
+  iam_instance_profile   = var.instance_profile_name
   subnet_id              = var.public_subnet_ids[count.index]
   vpc_security_group_ids = [var.frontend_security_group_id]
 

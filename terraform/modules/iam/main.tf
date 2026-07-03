@@ -1,5 +1,6 @@
 variable "project_name" { type = string }
 variable "s3_bucket_arn" { type = string }
+variable "deploy_bucket_arn" { type = string }
 variable "db_secret_arn" { type = string }
 
 # --- 1. EC2 Backend Role ---
@@ -67,6 +68,45 @@ resource "aws_iam_role_policy" "ec2_backend" {
 resource "aws_iam_instance_profile" "ec2_backend" {
   name = "${var.project_name}-ec2-backend-profile"
   role = aws_iam_role.ec2_backend.name
+}
+
+# --- 1b. EC2 Frontend Role (SSM deploy + S3 artifact read) ---
+resource "aws_iam_role" "ec2_frontend" {
+  name = "${var.project_name}-ec2-frontend-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_frontend_ssm" {
+  role       = aws_iam_role.ec2_frontend.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy" "ec2_frontend" {
+  name = "${var.project_name}-ec2-frontend-policy"
+  role = aws_iam_role.ec2_frontend.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "DeployArtifactsRead"
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:ListBucket"]
+      Resource = [var.deploy_bucket_arn, "${var.deploy_bucket_arn}/*"]
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "ec2_frontend" {
+  name = "${var.project_name}-ec2-frontend-profile"
+  role = aws_iam_role.ec2_frontend.name
 }
 
 # --- 2. Deployment Role (CodeDeploy) ---
@@ -169,5 +209,6 @@ resource "aws_iam_role_policy" "monitoring" {
 }
 
 output "ec2_backend_instance_profile_name" { value = aws_iam_instance_profile.ec2_backend.name }
+output "ec2_frontend_instance_profile_name" { value = aws_iam_instance_profile.ec2_frontend.name }
 output "deployment_role_arn" { value = aws_iam_role.deployment.arn }
 output "monitoring_sns_topic_arn" { value = aws_sns_topic.alerts.arn }

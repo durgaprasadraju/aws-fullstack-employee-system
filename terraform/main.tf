@@ -62,9 +62,10 @@ module "security_groups" {
 module "iam" {
   source = "./modules/iam"
 
-  project_name  = var.project_name
-  s3_bucket_arn = module.s3.bucket_arn
-  db_secret_arn = module.secrets.db_secret_arn
+  project_name      = var.project_name
+  s3_bucket_arn     = module.s3.bucket_arn
+  deploy_bucket_arn = module.s3.deploy_bucket_arn
+  db_secret_arn     = module.secrets.db_secret_arn
 }
 
 module "s3" {
@@ -165,6 +166,7 @@ module "frontend" {
   frontend_security_group_id = module.security_groups.frontend_sg_id
   instance_type              = var.frontend_instance_type
   key_name                   = var.bastion_key_name
+  instance_profile_name      = module.iam.ec2_frontend_instance_profile_name
   target_group_arn           = module.alb.frontend_target_group_arn
 }
 

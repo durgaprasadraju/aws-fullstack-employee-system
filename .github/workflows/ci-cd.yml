@@ -199,23 +199,4 @@ jobs:
           aws s3 cp dist.tar.gz "s3://${DEPLOY_BUCKET}/frontend/dist.tar.gz"
 
       - name: Deploy to frontend EC2 instances via SSM
-        run: |
-          INSTANCES=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=ems-frontend-*" "Name=instance-state-name,Values=running" \
-            --query "Reservations[].Instances[].InstanceId" --output text)
-
-          if [ -z "$INSTANCES" ]; then
-            echo "No running frontend instances found — S3 upload complete, skipping SSM deploy."
-            exit 0
-          fi
-
-          for INSTANCE in $INSTANCES; do
-            aws ssm send-command \
-              --instance-ids "$INSTANCE" \
-              --document-name "AWS-RunShellScript" \
-              --parameters commands="[
-                \"aws s3 cp s3://${DEPLOY_BUCKET}/frontend/dist.tar.gz /tmp/dist.tar.gz\",
-                \"tar -xzf /tmp/dist.tar.gz -C /usr/share/nginx/html\",
-                \"systemctl reload nginx\"
-              ]"
-          done
+        run: bash scripts/deploy-frontend-ssm.sh
